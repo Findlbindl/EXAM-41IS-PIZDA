@@ -1,0 +1,404 @@
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+						СОЗДАНИЕ ЮЗЕР КОНТРОЛ
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+________________________________________________________________________________________________________________
+//Подключение данных к DatabaseContext
+internal class DatabaseContext
+    {
+        public static Model1 db = new Model1();
+    }
+
+________________________________________________________________________________________________________________
+//Код на User Control
+ public partial class AgentCard : UserControl
+    {
+        
+        public AgentCard()
+        {
+            InitializeComponent();
+        }
+
+        public void GenerateDataToAgentCard(Agent agent)
+        {
+            pictureBox1.ImageLocation = agent.Logo;
+            typeNameLbl.Text = agent.AgentType.Title + " | " + agent.Title;
+            int qty = 0;
+            decimal sum = 0;
+            foreach (ProductSale sale in agent.ProductSale)
+            {
+                qty =+ sale.ProductCount;
+                sum =+ qty * sale.Product.MinCostForAgent;
+            }
+
+            qtyLbl.Text = qty + " продаж за год";
+            phoneLbl.Text = agent.Phone;
+            priorityValueLbl.Text = agent.Priority.ToString();
+            
+            if (sum < 10000)
+            {
+                percentLbl.Text = "0%";
+            }
+            else if (sum >= 10000 && sum <= 50000)
+            {
+                percentLbl.Text = "5%";
+            }
+            else if (sum > 50000 && sum <= 150000)
+            {
+                percentLbl.Text = "10%";
+            }
+            else if (sum > 150000 && sum <= 500000)
+            {
+                percentLbl.Text = "20%";
+            }
+            else
+            {
+                percentLbl.Text = "25%";
+            }
+        }
+    }
+
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+				НАСТРОЙКА ГЛАВНОЙ ФОРМЫ И ПОДКЛЮЧЕНИЕ ЮЗЕР КОНТРОЛ
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+_________________________________________________________________________________________________________________
+//Код на подключение даных и генерации страниц
+ public partial class MainForm : Form
+    {
+        public static List<Agent> agents = new List<Agent>();
+        public static List<AgentCard> selectedAgentCard = new List<AgentCard>();
+        int currentPage = 0;
+        int currentSize = 20;
+        // Счётчик страниц
+        int pageNum = 0;
+        int pageSize = 20;
+        public MainForm()
+        {
+            InitializeComponent();
+            agents = DatabaseContext.db.Agent.ToList();
+ 		//Pagination(currentPage, currentSize);
+            TurnPageOnMainForm(currentPage, currentSize);
+        }
+
+_________________________________________________________________________________________________________________
+//Код на генерацию карточки AgentCard - название интерфейса юзера
+ 	private void GenerateAgentCardList(List<Agent> agent)
+        {
+            foreach (var a in agent)
+            {
+                
+                AgentCard card = new AgentCard();
+                
+                card.GenerateDataToAgentCard(a);
+                flowLayoutPanel1.Controls.Add(card);
+                
+                card.DoubleClick += new System.EventHandler(this.Card_DoubleClick);
+                card.Click += new System.EventHandler(this.Card_Click);
+            }
+        }
+
+//Код на выделение цветом карточек и создания колекции
+ 	private void Card_Click(object sender, EventArgs e)
+        {
+            AgentCard card = sender as AgentCard;
+            
+             
+            if (card.BackColor == Color.White)
+            {
+                card.BackColor = Color.FromArgb(255, 233, 249);
+                selectedAgentCard.Add(card);
+            }
+            else
+            {
+                card.BackColor = Color.White;
+                selectedAgentCard.Remove(card);
+            }
+            
+            if (selectedAgentCard.Count > 1)
+            {
+                button1.Visible = true;
+            }
+            else
+            {
+                button1.Visible = false;
+            }
+        }
+
+_________________________________________________________________________________________________________________
+//Код на дабл клик
+ 	private void Card_DoubleClick(object sender, EventArgs e)
+        {
+            AgentCard card = sender as AgentCard;
+            selectedAgentCard.Add(card);
+            EditAgentForm editForm = new EditAgentForm();
+            DialogResult dialogResult = editForm.ShowDialog();  
+        }
+
+_________________________________________________________________________________________________________________
+//Код на сортировку фильтрацию поиск
+ 	private void SortListView()
+        {
+            var listUpdate = DatabaseContext.db.Agent.ToList();
+
+            #region Filter
+            if (filterComboBox.SelectedIndex > 0)
+            {
+                listUpdate = listUpdate
+                    .Where(type => type.AgentType.Title == filterComboBox.SelectedItem.ToString())
+                    .ToList();
+            }
+            #endregion
+
+            #region Search
+            if (searchTextBox.Text != "Введите для поиска" && !string.IsNullOrWhiteSpace(searchTextBox.Text))
+            {
+                listUpdate = listUpdate
+                    .Where(p => p.Title.ToLower().Contains(searchTextBox.Text.ToLower())
+                    || p.Phone.Contains(searchTextBox.Text)
+                    || p.Email.ToLower().Contains(searchTextBox.Text.ToLower()))
+                    .ToList();
+            }
+            #endregion
+
+            #region Sort
+            if (sortComboBox.Text == "Наименование")
+            {
+                if (!descCheckBox.Checked)
+                    listUpdate = listUpdate.OrderBy(p => p.Title).ToList();
+                else
+                    listUpdate = listUpdate.
+                        OrderByDescending(p => p.Title).ToList();
+            }
+            if (sortComboBox.Text == "Приоритет")
+            {
+                if (!descCheckBox.Checked)
+                    listUpdate = listUpdate.OrderBy(p => p.Priority).ToList();
+                else
+                    listUpdate = listUpdate.
+                        OrderByDescending(p => p.Priority).ToList();
+
+            }
+            flowLayoutPanel1.Controls.Clear();
+
+
+            #endregion
+            
+            GenerateAgentCardList(listUpdate);
+        }
+
+___________________________________________________________________________________________________________________
+//Код на страницы
+	private void TurnPageOnMainForm(int pN, int pS)
+        {
+            if (currentPage < 0)
+            {
+                currentPage = 0;
+                pageNum = 0;
+            }
+
+            pageNumLbl.Text = (pageNum + 1) + "/" + (int)(agents.Count / pageSize);
+            var pageList = agents.Skip(pageNum * pageSize).Take(pageSize).ToList();
+            GenerateAgentCardList(pageList);
+        }
+    -----------------------------------------------------------------------------------------
+ 	private void pageNextLbl_Click(object sender, EventArgs e)
+        {
+            if (pageNum > 3)
+                return;
+            pageNum++;
+            currentPage = ((currentPage + 1) * currentSize) < agents.Count() ? (currentPage + 1) : currentPage;
+            flowLayoutPanel1.Controls.Clear();
+            TurnPageOnMainForm(currentPage, currentSize);
+        }
+    ------------------------------------------------------------------------------------------
+	private void prevLbl_Click(object sender, EventArgs e)
+        {
+            if (pageNum < 1)
+                return;
+            pageNum--;
+            currentPage = (currentPage - currentSize) < 0 ? (currentPage - 1) : 0;
+            flowLayoutPanel1.Controls.Clear();
+            TurnPageOnMainForm(currentPage, currentSize);
+        }
+
+_________________________________________________________________________________________________________________________
+//Код на поисковой текст бокс
+ 	private void searchTextBox_TextChanged(object sender, EventArgs e)
+        {
+            if (searchTextBox.Text != "Введите для поиска")
+            {
+                flowLayoutPanel1.Controls.Clear();
+                SortListView();
+            }
+        }
+
+_________________________________________________________________________________________________________________________
+//Код на МаинФорм
+ private void MainForm_Load(object sender, EventArgs e)
+        {
+            var allType = DatabaseContext.db.AgentType.Select(type => type.Title).ToList();
+            allType.Insert(0, "Все типы");
+            filterComboBox.DataSource = allType;
+            filterComboBox.SelectedIndex = 0;
+            sortComboBox.SelectedIndex = 0;
+        }
+
+_________________________________________________________________________________________________________________________
+//Код на сортКомбоБокс
+  	private void sortComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            flowLayoutPanel1.Controls.Clear();
+            SortListView();
+        }
+
+__________________________________________________________________________________________________________________________
+//Код на галочку Убывания
+	private void descCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            flowLayoutPanel1.Controls.Clear();
+            SortListView();
+        }
+
+____________________________________________________________________________________________________________________________
+//Код на фильтрКомбоБокс
+ 	private void filterComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            flowLayoutPanel1.Controls.Clear();
+            SortListView();
+        }
+
+____________________________________________________________________________________________________________________________
+//Кнопка вызова формы изменения приоритета
+ 	private void button1_Click(object sender, EventArgs e)
+        {
+            PriorityChangeModalWindow priorityChange = new PriorityChangeModalWindow();
+            DialogResult dialogResult = priorityChange.ShowDialog();
+            SortListView();
+        }
+      -----------------------------------------------------------------------------------
+				ДРУГОЙ ВАРИАНТ
+     ------------------------------------------------------------------------------------
+ 	private void button1_Click(object sender, EventArgs e)
+        {
+            Product product = (Product)productBindingSource.Current;
+            UpDelWindow upDelWindow = new UpDelWindow();
+            upDelWindow.product = null;
+            DialogResult dr = upDelWindow.ShowDialog();
+        }
+
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+						ФОРМА РЕДАКТИРОВАНИЯ
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+________________________________________________________________________________________________________________________________
+//Код формы редактирования
+ public partial class EditAgentForm : Form
+    {
+        public Agent Agent { get; set; } = null;
+        public EditAgentForm()
+        {
+            InitializeComponent();
+        }
+
+        private void EditAgentForm_Load(object sender, EventArgs e)
+        {
+
+            foreach (AgentCard agentCard in MainForm.selectedAgentCard)
+            {
+                Agent agent = (DatabaseContext.db.Agent.First(x => x.Phone == agentCard.phoneLbl.Text)) as Agent;
+                agentBindingSource.DataSource = agent;
+                pictureBox1.ImageLocation = agent.Logo;
+            }
+        }
+
+       
+
+        private void changeImgBtn_Click(object sender, EventArgs e) //Картинка
+        {
+            OpenFileDialog dialog = new OpenFileDialog();
+            dialog.Filter = "";
+            dialog.InitialDirectory = Environment.CurrentDirectory;
+            dialog.InitialDirectory += @"\agents\";
+            
+            DialogResult dialogResult = dialog.ShowDialog();
+
+            if (dialogResult == DialogResult.OK)
+            {
+                string file = dialog.FileName;
+                int num = file.IndexOf("agents");
+                file = file.Substring(num);
+
+                pictureBox1.Image = Image.FromFile(file);
+                ((Agent)agentBindingSource.Current).Logo = file;
+            }
+
+        }
+
+        private void saveBtn_Click(object sender, EventArgs e)
+        {
+            Agent = (Agent)agentBindingSource.Current;
+            DatabaseContext.db.Agent.Add(Agent);
+
+            try
+            {
+                DatabaseContext.db.SaveChanges();
+                DialogResult = DialogResult.OK;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+    }
+
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+						ФОРМА ИЗМЕНЕНИЯ ПРИОРИТЕТА
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+_______________________________________________________________________________________________________________________________________
+//Код на изменение приоритета
+public partial class PriorityChangeModalWindow : Form
+    {
+        public PriorityChangeModalWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void PriorityChangeModalWindow_Load(object sender, EventArgs e)
+        {
+            int max = 0;
+            foreach (AgentCard a in MainForm.selectedAgentCard)
+            {
+                int priority = Convert.ToInt32(a.priorityValueLbl.Text);
+                if (priority > max)
+                {
+                    max = priority;
+                }
+
+            }
+            textBox1.Text = max.ToString();
+        }
+
+        void GetMaxPriority(AgentCard agentCards)
+        {
+
+            textBox1.Text = agentCards.priorityLbl.ToString();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            int valueTxtBox = Convert.ToInt32(textBox1.Text);
+            foreach (AgentCard agentCard in MainForm.selectedAgentCard)
+            {
+                Agent agent = (DatabaseContext.db.Agent.First(x => x.Phone == agentCard.phoneLbl.Text)) as Agent;
+                agent.Priority = valueTxtBox;
+            }
+
+            try
+            {
+                DatabaseContext.db.SaveChanges();
+                DialogResult = DialogResult.OK;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+    }
